@@ -1,0 +1,59 @@
+# AIMLP platform — docker-compose.yml
+#
+# Four services: the API+frontend container, PostgreSQL (real registry
+# backend, not just SQLite), and MLflow (experiment tracking).
+#
+# What's actually verified vs. what's config-only (see README for full
+# detail): PostgreSQL was installed and run directly in the development
+# sandbox and the registry was tested against it live (not just written
+# against the SQL spec). MLflow's tracking API was verified the same way.
+# The `mlflow ui` web server had port-binding issues specific to that
+# sandbox across multiple worker configs -- included here with
+# `--workers 1` since that's the safer default regardless, but the UI
+# server itself wasn't confirmed serving pages there. This compose file
+# was not run through an actual Docker daemon, since none was available
+# in that sandbox.
+version: "3.9"
+
+services:
+  aimlp-api:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../registry/model_store:/app/registry/model_store
+    depends_on:
+      - postgres
+      - mlflow
+    environment:
+      - DATABASE_URL=postgresql://aimlp:aimlp@postgres:5432/aimlp_registry
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=aimlp
+      - POSTGRES_PASSWORD=aimlp
+      - POSTGRES_DB=aimlp_registry
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  mlflow:
+    image: python:3.11-slim
+    command: >
+      sh -c "pip install --no-cache-dir mlflow &&
+             mlflow server --backend-store-uri sqlite:///mlflow_data/mlflow.db
+             --host 0.0.0.0 --port 5000 --workers 1"
+    volumes:
+      - mlflow_data:/mlflow_data
+    working_dir: /mlflow_data
+    ports:
+      - "5000:5000"
+
+volumes:
+  pg_data:
+  mlflow_data:

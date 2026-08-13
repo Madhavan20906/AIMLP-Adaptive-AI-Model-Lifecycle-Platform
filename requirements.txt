@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+python-multipart
+scikit-learn
+xgboost
+lightgbm
+catboost
+imbalanced-learn
+pandas
+numpy
+scipy
+joblib
+psycopg2-binary
+mlflow
+reportlab

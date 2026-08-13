@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AIMLP — Model Lifecycle Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Minimal utility layer, written in-house rather than pulled from an
+     external CDN. An enterprise console that goes blank the moment a
+     corporate proxy blocks a CDN (which many do) isn't enterprise-grade --
+     so layout utilities live here, self-contained. Google Fonts is the
+     only external dependency left, and the font stack below has a system
+     fallback if even that's blocked. */
+  .hidden { display: none !important; }
+  .flex { display: flex; }
+  .grid { display: grid; }
+  .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .flex-1 { flex: 1 1 0%; }
+  .items-center { align-items: center; }
+  .justify-between { justify-content: space-between; }
+  .whitespace-nowrap { white-space: nowrap; }
+  .gap-2 { gap: 0.5rem; } .gap-3 { gap: 0.75rem; } .gap-4 { gap: 1rem; } .gap-6 { gap: 1.5rem; }
+  .mb-1 { margin-bottom: 0.25rem; } .mb-2 { margin-bottom: 0.5rem; }
+  .mb-3 { margin-bottom: 0.75rem; } .mb-4 { margin-bottom: 1rem; }
+  .mt-4 { margin-top: 1rem; } .pt-4 { padding-top: 1rem; }
+  .p-5 { padding: 1.25rem; } .px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+  .py-5 { padding-top: 1.25rem; padding-bottom: 1.25rem; } .py-8 { padding-top: 2rem; padding-bottom: 2rem; }
+  .space-y-1 > * + * { margin-top: 0.25rem; } .space-y-2 > * + * { margin-top: 0.5rem; }
+  .space-y-8 > * + * { margin-top: 2rem; }
+  .max-w-6xl { max-width: 72rem; } .mx-auto { margin-left: auto; margin-right: auto; }
+  .min-h-screen { min-height: 100vh; }
+  .w-full { width: 100%; } .w-20 { width: 5rem; } .w-48 { width: 12rem; }
+  .text-xs { font-size: 0.75rem; } .text-sm { font-size: 0.875rem; } .text-xl { font-size: 1.25rem; }
+  .font-medium { font-weight: 500; } .font-semibold { font-weight: 600; }
+  .border-b { border-bottom: 1px solid var(--border-subtle); }
+  .border-t { border-top: 1px solid var(--border-subtle); }
+  @media (max-width: 720px) { .grid-cols-2, .grid-cols-4 { grid-template-columns: 1fr; } }
+</style>
+<style>
+  :root {
+    --bg-base: #10151c;
+    --bg-panel: #171d26;
+    --bg-panel-raised: #1d242f;
+    --border-subtle: #2a323d;
+    --text-primary: #e8ecf1;
+    --text-muted: #8b96a5;
+    --accent-cyan: #4fd1c5;
+    --accent-amber: #e8b94d;
+    --accent-rose: #e8607a;
+    --accent-violet: #9b8cfb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: 'IBM Plex Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+  .panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+  }
+  .panel-raised { background: var(--bg-panel-raised); }
+  .eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  input[type=text], input[type=number], input[type=file] {
+    background: var(--bg-panel-raised);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+  }
+  input[type=file]::file-selector-button {
+    background: var(--border-subtle);
+    color: var(--text-primary);
+    border: none;
+    border-radius: 4px;
+    padding: 5px 10px;
+    margin-right: 10px;
+    cursor: pointer;
+  }
+  button.action {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+    border-radius: 6px;
+    padding: 10px 18px;
+    transition: filter 0.15s ease, transform 0.1s ease;
+    cursor: pointer;
+    border: none;
+  }
+  button.action:hover { filter: brightness(1.12); }
+  button.action:active { transform: scale(0.98); }
+  button.action:disabled { opacity: 0.4; cursor: not-allowed; filter: none; }
+  .btn-primary { background: var(--accent-cyan); color: #0a1414; }
+  .btn-secondary { background: var(--accent-violet); color: #14102f; }
+  .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border-subtle); }
+  .badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 100px;
+    display: inline-block;
+  }
+  .badge-excellent { background: rgba(79,209,197,0.15); color: var(--accent-cyan); border: 1px solid rgba(79,209,197,0.4); }
+  .badge-good { background: rgba(79,209,197,0.1); color: var(--accent-cyan); border: 1px solid rgba(79,209,197,0.25); }
+  .badge-average { background: rgba(232,185,77,0.15); color: var(--accent-amber); border: 1px solid rgba(232,185,77,0.4); }
+  .badge-poor { background: rgba(232,96,122,0.15); color: var(--accent-rose); border: 1px solid rgba(232,96,122,0.4); }
+  .badge-low { background: rgba(79,209,197,0.15); color: var(--accent-cyan); border: 1px solid rgba(79,209,197,0.4); }
+  .badge-medium { background: rgba(232,185,77,0.15); color: var(--accent-amber); border: 1px solid rgba(232,185,77,0.4); }
+  .badge-high { background: rgba(232,96,122,0.15); color: var(--accent-rose); border: 1px solid rgba(232,96,122,0.4); }
+  table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.data-table th {
+    text-align: left; font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+    letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted);
+    padding: 8px 12px; border-bottom: 1px solid var(--border-subtle);
+  }
+  table.data-table td {
+    padding: 9px 12px; border-bottom: 1px solid rgba(42,50,61,0.5);
+  }
+  table.data-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .breakdown-bar-track { background: var(--border-subtle); border-radius: 4px; height: 6px; overflow: hidden; }
+  .breakdown-bar-fill { height: 100%; border-radius: 4px; }
+  .spinner {
+    width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2);
+    border-top-color: currentColor; border-radius: 50%;
+    animation: spin 0.7s linear infinite; display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .fade-in { animation: fadeIn 0.25s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body class="min-h-screen">
+
+  <!-- Header -->
+  <div class="border-b" style="border-color: var(--border-subtle);">
+    <div class="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
+      <div>
+        <div class="eyebrow">adaptive ai model lifecycle platform</div>
+        <div class="text-xl font-semibold" style="letter-spacing: -0.01em;">AIMLP <span class="mono text-sm" style="color: var(--text-muted);">/ console</span></div>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="eyebrow">project</span>
+        <input type="text" id="projectName" value="fraud_prod" class="w-48" placeholder="project name" />
+      </div>
+    </div>
+  </div>
+
+  <div class="max-w-6xl mx-auto px-6 py-8 space-y-8">
+
+    <!-- Mode selector row -->
+    <div class="grid grid-cols-2 gap-6">
+      <!-- MODE 1 -->
+      <div class="panel p-5">
+        <div class="eyebrow mb-1">mode 1</div>
+        <div class="font-semibold mb-3">Initial Model Creation</div>
+        <p class="text-sm mb-4" style="color: var(--text-muted);">Upload a dataset. The platform profiles it, shortlists candidate algorithms, trains and evaluates all of them, and registers the best one.</p>
+        <input type="file" id="mode1File" accept=".csv" class="w-full mb-3" />
+        <input type="text" id="mode1Target" placeholder="target column (optional — auto-detected)" class="w-full mb-3" />
+        <button class="action btn-primary w-full" onclick="runMode1()" id="mode1Btn">Train from dataset</button>
+      </div>
+
+      <!-- MODE 2 -->
+      <div class="panel p-5">
+        <div class="eyebrow mb-1">mode 2</div>
+        <div class="font-semibold mb-3">Adaptive Production Evolution</div>
+        <p class="text-sm mb-4" style="color: var(--text-muted);">Upload the latest data. The platform checks the live model's health and drift, then retrains or replaces it — whichever is justified.</p>
+        <input type="file" id="mode2File" accept=".csv" class="w-full mb-3" />
+        <div class="flex items-center gap-2 mb-3">
+          <span class="eyebrow whitespace-nowrap">switch threshold</span>
+          <input type="number" id="switchThreshold" value="3.0" step="0.5" class="w-20" />
+        </div>
+        <button class="action btn-secondary w-full" onclick="runMode2()" id="mode2Btn">Evaluate &amp; evolve</button>
+      </div>
+    </div>
+
+    <div id="statusLine" class="text-sm mono" style="color: var(--text-muted);"></div>
+
+    <!-- Dataset profile (Mode 1 preview) -->
+    <div id="profileSection" class="hidden panel p-5 fade-in">
+      <div class="eyebrow mb-3">dataset analysis</div>
+      <div id="profileGrid" class="grid grid-cols-4 gap-4 text-sm"></div>
+      <div id="candidateReasoning" class="mt-4 pt-4 border-t text-sm" style="border-color: var(--border-subtle);"></div>
+    </div>
+
+    <!-- Health + Drift row (Mode 2) -->
+    <div id="healthDriftSection" class="hidden grid grid-cols-2 gap-6 fade-in">
+      <div class="panel p-5">
+        <div class="eyebrow mb-4">model health</div>
+        <div class="flex items-center gap-6">
+          <svg id="gaugeSvg" width="140" height="140" viewBox="0 0 140 140"></svg>
+          <div class="flex-1">
+            <div id="healthCategory" class="badge mb-2"></div>
+            <div id="healthBreakdown" class="space-y-2"></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel p-5">
+        <div class="eyebrow mb-3">drift detection</div>
+        <div class="flex items-center gap-3 mb-4">
+          <span id="driftBadge" class="badge"></span>
+          <span id="driftFraction" class="mono text-sm" style="color: var(--text-muted);"></span>
+        </div>
+        <div class="eyebrow mb-2">decision</div>
+        <div id="decisionText" class="text-sm font-medium mb-2"></div>
+        <div id="reasoningText" class="text-sm" style="color: var(--text-muted);"></div>
+      </div>
+    </div>
+
+    <!-- Leaderboard -->
+    <div id="leaderboardSection" class="hidden panel p-5 fade-in">
+      <div class="eyebrow mb-3">leaderboard</div>
+      <table class="data-table">
+        <thead>
+          <tr><th>Rank</th><th>Algorithm</th><th>Score</th><th>Accuracy</th><th>F1</th><th>ROC AUC</th><th>Train time</th><th>Size</th></tr>
+        </thead>
+        <tbody id="leaderboardBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Version history -->
+    <div class="panel p-5">
+      <div class="flex items-center justify-between mb-3">
+        <div class="eyebrow">version history</div>
+        <button class="action btn-ghost" onclick="loadVersions()">Refresh</button>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr><th>Version</th><th>Algorithm</th><th>Score</th><th>Source</th><th>Status</th><th></th></tr>
+        </thead>
+        <tbody id="versionsBody"></tbody>
+      </table>
+    </div>
+
+  </div>
+
+<script>
+const API_BASE = '';
+
+function setStatus(msg, isError) {
+  const el = document.getElementById('statusLine');
+  el.textContent = msg;
+  el.style.color = isError ? 'var(--accent-rose)' : 'var(--text-muted)';
+}
+
+function healthBadgeClass(category) {
+  return { 'Excellent': 'badge-excellent', 'Good': 'badge-good', 'Average': 'badge-average', 'Poor': 'badge-poor' }[category] || 'badge-average';
+}
+function driftBadgeClass(severity) {
+  return { 'Low': 'badge-low', 'Medium': 'badge-medium', 'High': 'badge-high' }[severity] || 'badge-medium';
+}
+function healthColor(category) {
+  return { 'Excellent': 'var(--accent-cyan)', 'Good': 'var(--accent-cyan)', 'Average': 'var(--accent-amber)', 'Poor': 'var(--accent-rose)' }[category] || 'var(--accent-amber)';
+}
+
+function drawGauge(score, category) {
+  const svg = document.getElementById('gaugeSvg');
+  const color = healthColor(category);
+  const r = 55, cx = 70, cy = 70;
+  const circumference = 2 * Math.PI * r;
+  const arcFraction = 0.75; // 270-degree arc, gauge-style
+  const arcLength = circumference * arcFraction;
+  const filled = arcLength * (score / 100);
+  const rotation = 135; // start angle so the gap sits at the bottom
+  svg.innerHTML = `
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--border-subtle)" stroke-width="10"
+      stroke-dasharray="${arcLength} ${circumference}" stroke-linecap="round"
+      transform="rotate(${rotation} ${cx} ${cy})" />
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="10"
+      stroke-dasharray="${filled} ${circumference}" stroke-linecap="round"
+      transform="rotate(${rotation} ${cx} ${cy})" style="transition: stroke-dasharray 0.6s ease;" />
+    <text x="${cx}" y="${cy - 2}" text-anchor="middle" font-family="IBM Plex Mono, monospace"
+      font-size="26" font-weight="600" fill="var(--text-primary)">${score}</text>
+    <text x="${cx}" y="${cy + 18}" text-anchor="middle" font-family="IBM Plex Mono, monospace"
+      font-size="10" letter-spacing="1" fill="var(--text-muted)">/ 100</text>
+  `;
+}
+
+function renderBreakdown(breakdown, weights) {
+  const labels = { performance: 'Performance', drift: 'Drift resistance', confidence: 'Confidence', efficiency: 'Efficiency' };
+  const colors = { performance: 'var(--accent-cyan)', drift: 'var(--accent-violet)', confidence: 'var(--accent-amber)', efficiency: 'var(--text-muted)' };
+  let html = '';
+  for (const key in breakdown) {
+    const val = breakdown[key];
+    const weight = Math.round((weights[key] || 0) * 100);
+    html += `
+      <div>
+        <div class="flex justify-between text-xs mb-1">
+          <span style="color: var(--text-muted);">${labels[key] || key} <span class="mono">(${weight}%)</span></span>
+          <span class="mono">${val}</span>
+        </div>
+        <div class="breakdown-bar-track"><div class="breakdown-bar-fill" style="width:${val}%; background:${colors[key]};"></div></div>
+      </div>`;
+  }
+  document.getElementById('healthBreakdown').innerHTML = html;
+}
+
+function renderProfile(profile, candidateSelection) {
+  document.getElementById('profileSection').classList.remove('hidden');
+  const g = document.getElementById('profileGrid');
+  const cell = (label, val) => `<div><div class="eyebrow mb-1">${label}</div><div class="mono">${val}</div></div>`;
+  g.innerHTML =
+    cell('rows', profile.n_rows.toLocaleString()) +
+    cell('columns', profile.n_columns) +
+    cell('problem type', profile.problem_type) +
+    cell('target', profile.target_column) +
+    cell('quality score', profile.data_quality_score + ' / 100') +
+    cell('missing', (profile.missing_ratio * 100).toFixed(1) + '%') +
+    cell('duplicates', profile.duplicates) +
+    cell('imbalance ratio', profile.imbalance_ratio ?? '—');
+
+  let reasoningHtml = `<div class="eyebrow mb-2">candidate selection ${candidateSelection.evaluated_all ? '(evaluated full pool — low confidence in shortlisting)' : '(confidence ' + Math.round(candidateSelection.confidence*100) + '%)'}</div>`;
+  reasoningHtml += `<div class="mb-2 mono text-xs" style="color: var(--accent-cyan);">${candidateSelection.candidates.join(' · ')}</div>`;
+  reasoningHtml += '<ul class="space-y-1 text-xs" style="color: var(--text-muted);">' +
+    candidateSelection.reasons.map(r => `<li>— ${r}</li>`).join('') + '</ul>';
+  document.getElementById('candidateReasoning').innerHTML = reasoningHtml;
+}
+
+function renderLeaderboard(leaderboard, problemType) {
+  document.getElementById('leaderboardSection').classList.remove('hidden');
+  const body = document.getElementById('leaderboardBody');
+  body.innerHTML = leaderboard.map(r => `
+    <tr>
+      <td class="mono">#${r.rank ?? '—'}</td>
+      <td>${r.name}</td>
+      <td class="mono" style="color: var(--accent-cyan);">${r.overall_score}</td>
+      <td class="mono">${r.metrics.accuracy !== undefined ? r.metrics.accuracy.toFixed(3) : '—'}</td>
+      <td class="mono">${r.metrics.f1 !== undefined ? r.metrics.f1.toFixed(3) : '—'}</td>
+      <td class="mono">${r.metrics.roc_auc ? r.metrics.roc_auc.toFixed(3) : '—'}</td>
+      <td class="mono">${r.train_time_s}s</td>
+      <td class="mono">${r.model_size_kb}KB</td>
+    </tr>`).join('');
+}
+
+function renderHealthDrift(explanation) {
+  document.getElementById('healthDriftSection').classList.remove('hidden');
+  const h = explanation.health;
+  drawGauge(h.health_score, h.category);
+  document.getElementById('healthCategory').className = 'badge ' + healthBadgeClass(h.category);
+  document.getElementById('healthCategory').textContent = h.category;
+  renderBreakdown(h.breakdown, h.weights);
+
+  const d = explanation.drift;
+  document.getElementById('driftBadge').className = 'badge ' + driftBadgeClass(d.severity);
+  document.getElementById('driftBadge').textContent = d.severity + ' drift';
+  document.getElementById('driftFraction').textContent = Math.round(d.fraction_features_drifted * 100) + '% of features shifted';
+
+  const decisionLabels = { retrain_same_algorithm: 'Retrain same algorithm', replace_model: 'Replace model family' };
+  document.getElementById('decisionText').textContent = decisionLabels[explanation.decision] || explanation.decision;
+  document.getElementById('decisionText').style.color = explanation.decision === 'replace_model' ? 'var(--accent-violet)' : 'var(--accent-cyan)';
+  document.getElementById('reasoningText').innerHTML = explanation.reasoning.map(r => `<p class="mb-1">${r}</p>`).join('');
+
+  if (explanation.leaderboard && explanation.leaderboard.length) {
+    renderLeaderboard(explanation.leaderboard.map((r,i) => ({...r, rank: i+1, train_time_s: '—', model_size_kb: '—'})));
+  }
+}
+
+async function runMode1() {
+  const project = document.getElementById('projectName').value.trim();
+  const fileInput = document.getElementById('mode1File');
+  const target = document.getElementById('mode1Target').value.trim();
+  if (!project || !fileInput.files.length) { setStatus('Provide a project name and a CSV file.', true); return; }
+
+  const btn = document.getElementById('mode1Btn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Training…';
+  setStatus('Analyzing dataset, selecting candidates, training leaderboard — this can take a minute…');
+
+  const form = new FormData();
+  form.append('file', fileInput.files[0]);
+  form.append('project_name', project);
+  if (target) form.append('target_column', target);
+
+  try {
+    const res = await fetch(`${API_BASE}/mode1/train`, { method: 'POST', body: form });
+    const data = await res.json();
+    if (data.error) { setStatus(data.error, true); return; }
+
+    renderProfile(data.profile, { candidates: data.candidate_selection.candidates_evaluated, reasons: data.candidate_selection.reasons, confidence: data.candidate_selection.confidence, evaluated_all: data.candidate_selection.evaluated_all });
+    renderLeaderboard(data.leaderboard, data.profile.problem_type);
+    setStatus(`Done in ${data.total_time_s}s — best model: ${data.best_model.name} (score ${data.best_model.overall_score}). Registered as version ${data.version_id}.`);
+    loadVersions();
+  } catch (e) {
+    setStatus('Request failed: ' + e.message, true);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Train from dataset';
+  }
+}
+
+async function runMode2() {
+  const project = document.getElementById('projectName').value.trim();
+  const fileInput = document.getElementById('mode2File');
+  const threshold = document.getElementById('switchThreshold').value;
+  if (!project || !fileInput.files.length) { setStatus('Provide a project name and a CSV file.', true); return; }
+
+  const btn = document.getElementById('mode2Btn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Evaluating…';
+  setStatus('Evaluating current model health and drift against latest data…');
+
+  const form = new FormData();
+  form.append('latest_file', fileInput.files[0]);
+  form.append('project_name', project);
+  form.append('switch_threshold', threshold);
+
+  try {
+    const res = await fetch(`${API_BASE}/mode2/evolve`, { method: 'POST', body: form });
+    const data = await res.json();
+    if (data.error) { setStatus(data.error, true); return; }
+
+    renderHealthDrift(data);
+    setStatus(`Decision: ${data.decision}. ${data.new_version_id ? 'Registered as version ' + data.new_version_id + '.' : ''}`);
+    loadVersions();
+  } catch (e) {
+    setStatus('Request failed: ' + e.message, true);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Evaluate & evolve';
+  }
+}
+
+async function loadVersions() {
+  const project = document.getElementById('projectName').value.trim();
+  if (!project) return;
+  try {
+    const res = await fetch(`${API_BASE}/registry/${project}/versions`);
+    const data = await res.json();
+    const body = document.getElementById('versionsBody');
+    if (!data.versions || !data.versions.length) {
+      body.innerHTML = `<tr><td colspan="6" class="text-sm" style="color: var(--text-muted);">No versions yet for this project.</td></tr>`;
+      return;
+    }
+    body.innerHTML = data.versions.map(v => `
+      <tr>
+        <td class="mono">v${v.version_id}</td>
+        <td>${v.algorithm}</td>
+        <td class="mono" style="color: var(--accent-cyan);">${v.overall_score}</td>
+        <td class="mono text-xs" style="color: var(--text-muted);">${v.source}</td>
+        <td>${v.is_active ? '<span class="badge badge-excellent">active</span>' : '<span class="badge badge-average" style="opacity:0.5;">inactive</span>'}</td>
+        <td>${v.is_active ? '' : `<button class="action btn-ghost" style="padding:4px 10px;" onclick="rollback('${project}', ${v.version_id})">Rollback</button>`}</td>
+      </tr>`).join('');
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+async function rollback(project, versionId) {
+  setStatus(`Rolling back ${project} to version ${versionId}…`);
+  try {
+    const res = await fetch(`${API_BASE}/registry/${project}/rollback/${versionId}`, { method: 'POST' });
+    const data = await res.json();
+    setStatus(data.message || 'Rolled back.');
+    loadVersions();
+  } catch (e) {
+    setStatus('Rollback failed: ' + e.message, true);
+  }
+}
+
+document.getElementById('projectName').addEventListener('change', loadVersions);
+loadVersions();
+</script>
+</body>
+</html>
